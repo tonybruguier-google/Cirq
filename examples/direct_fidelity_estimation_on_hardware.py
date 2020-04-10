@@ -1,4 +1,5 @@
 import argparse
+import dataclasses
 import os
 import sys
 from typing import List
@@ -49,7 +50,7 @@ class DFETask:
         #     processor_id='tmp',
         #     gate_set=[gate_sets.SQRT_ISWAP_GATESET, gate_sets.SYC_GATESET])
 
-        _, run_log = dfe.direct_fidelity_estimation(
+        _, dfe_intermediate_result = dfe.direct_fidelity_estimation(
             circuit,
             qubits,
             sampler,
@@ -57,17 +58,17 @@ class DFETask:
             n_clifford_trials=self.n_clifford_trials,
             samples_per_term=self.samples_per_term)
 
-        return run_log
+        return dfe_intermediate_result
 
 
 def main(n_trials: int, n_clifford_trials: int, samples_per_term: int):
     task = DFETask(n_trials=n_trials,
                    n_clifford_trials=n_clifford_trials,
                    samples_per_term=samples_per_term)
-    run_log = task.run()
+    dfe_intermediate_result = task.run()
     recirq.save(task=task,
-                data=run_log,
-                base_dir=os.path.expanduser(f'~/cirq-results/dfe'))
+                data=dataclasses.asdict(dfe_intermediate_result),
+                base_dir=os.path.expanduser(f'~/cirq_results/dfe_on_hardware'))
 
 
 def parse_arguments(args):
