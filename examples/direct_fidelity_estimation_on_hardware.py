@@ -50,7 +50,7 @@ class DFETask:
         #     processor_id='tmp',
         #     gate_set=[gate_sets.SQRT_ISWAP_GATESET, gate_sets.SYC_GATESET])
 
-        _, dfe_intermediate_result = dfe.direct_fidelity_estimation(
+        estimated_fidelity, intermediate_result = dfe.direct_fidelity_estimation(
             circuit,
             qubits,
             sampler,
@@ -58,16 +58,20 @@ class DFETask:
             n_clifford_trials=self.n_clifford_trials,
             samples_per_term=self.samples_per_term)
 
-        return dfe_intermediate_result
+        return estimated_fidelity, intermediate_result
 
 
 def main(n_trials: int, n_clifford_trials: int, samples_per_term: int):
     task = DFETask(n_trials=n_trials,
                    n_clifford_trials=n_clifford_trials,
                    samples_per_term=samples_per_term)
-    dfe_intermediate_result = task.run()
+    estimated_fidelity, intermediate_result = task.run()
+
+    data = {'estimated_fidelity': estimated_fidelity,
+            'intermediate_result': dataclasses.asdict(intermediate_result)}
+
     recirq.save(task=task,
-                data=dataclasses.asdict(dfe_intermediate_result),
+                data=data,
                 base_dir=os.path.expanduser(f'~/cirq_results/dfe_on_hardware'))
 
 
