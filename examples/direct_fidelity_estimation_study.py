@@ -101,21 +101,19 @@ def run_true_fidelity(n_qubits: int, noise: float):
 
 def main():
     noise = 0.1
-    n_trials = 1000
-    n_repetitions = 2
+    n_repetitions = 100
 
-    for n_qubits in range(2, 3):
-        print('n_qubits=%d' % (n_qubits))
-
+    for n_qubits in range(1, 9):
         run_true_fidelity(n_qubits=n_qubits, noise=noise)
-
         for n_clifford_trials in [1, 10, 100, None]:
-            print('n_clifford_trials=%r' % (n_clifford_trials))
-            run_one_study(n_repetitions=n_repetitions,
-                          n_qubits=n_qubits,
-                          n_trials=n_trials,
-                          n_clifford_trials=n_clifford_trials,
-                          noise=noise)
+            for n_trials in [1, 10, 100, 1000]:
+                print('n_qubits=%d n_clifford_trials=%r n_trials=%d' % (n_qubits, n_clifford_trials, n_trials))
+
+                run_one_study(n_repetitions=n_repetitions,
+                              n_qubits=n_qubits,
+                              n_trials=n_trials,
+                              n_clifford_trials=n_clifford_trials,
+                              noise=noise)
 
 
 if __name__ == '__main__':
