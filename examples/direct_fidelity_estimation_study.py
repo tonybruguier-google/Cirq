@@ -30,6 +30,7 @@ def _get_noise(noise):
                                     frozen=True)
 class DFETask:
     """A task that runs direct fidelity estimation (DFE) studies."""
+    n_repetitions: int
     n_qubits: int
     n_trials: int
     n_clifford_trials: int
@@ -38,18 +39,21 @@ class DFETask:
     @property
     def fn(self):
         clifford_string = 'exhaustive' if self.n_clifford_trials is None else '%d' % (self.n_clifford_trials)
-        return '%d_%d_%s_%e' % (self.n_qubits, self.n_trials, clifford_string, self.noise)
+        return '%d_%d_%d_%s_%e' % (self.n_repetitions, self.n_qubits, self.n_trials, clifford_string, self.noise)
 
     def run(self):
         qubits, circuit = _build_circuit(self.n_qubits)
         noisy_simulator = cirq.DensityMatrixSimulator(noise=_get_noise(self.noise))
-        return dfe.direct_fidelity_estimation(
-                                circuit,
-                                qubits,
-                                noisy_simulator,
-                                n_trials=self.n_trials,
-                                n_clifford_trials=self.n_clifford_trials,
-                                samples_per_term=0)
+        results = []
+        for _ in range(self.n_repetitions):
+            estimated_fidelity, intermediate_result = (
+                dfe.direct_fidelity_estimation(
+                circuit, qubits, noisy_simulator, n_trials=self.n_trials,
+                n_clifford_trials=self.n_clifford_trials, samples_per_term=0))
+            results.append({
+                'estimated_fidelity': estimated_fidelity,
+                'intermediate_result': dataclasses.asdict(intermediate_result)})
+        return results
 
 @recirq.json_serializable_dataclass(namespace='recirq.readout_scan',
                                     registry=recirq.Registry,
@@ -79,30 +83,40 @@ class TrueFidelityTask:
 
         return cirq.fidelity(clean_density_matrix, noisy_density_matrix)
 
-def run_one_study(n_qubits: int, n_trials: int, n_clifford_trials: int, noise: float):
-    task = DFETask(n_qubits=n_qubits,
+def run_one_study(n_repetitions: int, n_qubits: int, n_trials: int, n_clifford_trials: int, noise: float):
+    task = DFETask(n_repetitions=n_repetitions,
+                   n_qubits=n_qubits,
                    n_trials=n_trials,
                    n_clifford_trials=n_clifford_trials,
                    noise=noise)
-    estimated_fidelity, intermediate_result = task.run()
-    data = {'estimated_fidelity': estimated_fidelity,
-            'intermediate_result': dataclasses.asdict(intermediate_result)}
     recirq.save(task=task,
-                data=data,
+                data={"results": task.run()},
                 base_dir=os.path.expanduser(f'~/cirq_results/study/dfe'))
 
 def run_true_fidelity(n_qubits: int, noise: float):
     task = TrueFidelityTask(n_qubits=n_qubits, noise=noise)
-    true_fidelity = task.run()
-    data = {'true_fidelity': true_fidelity}
     recirq.save(task=task,
-                data=data,
+                data={'true_fidelity': task.run()},
                 base_dir=os.path.expanduser(f'~/cirq_results/study/true'))
 
 def main():
-    run_one_study(n_qubits=2, n_trials=3, n_clifford_trials=None, noise=0.1)
-    run_one_study(n_qubits=2, n_trials=3, n_clifford_trials=1, noise=0.1)
-    run_true_fidelity(n_qubits=2, noise=0.1)
+    noise = 0.1
+    n_trials = 1000
+    n_repetitions = 2
+
+    for n_qubits in range(2, 3):
+        print('n_qubits=%d' % (n_qubits))
+
+        run_true_fidelity(n_qubits=n_qubits, noise=noise)
+
+        for n_clifford_trials in [1, 10, 100, None]:
+            print('n_clifford_trials=%r' % (n_clifford_trials))
+            run_one_study(n_repetitions=n_repetitions,
+                          n_qubits=n_qubits,
+                          n_trials=n_trials,
+                          n_clifford_trials=n_clifford_trials,
+                          noise=noise)
+
 
 if __name__ == '__main__':
     main()
