@@ -1,4 +1,6 @@
 import dataclasses
+import matplotlib.pyplot as plt
+import numpy as np
 import os
 from typing import cast
 from typing import List
@@ -55,6 +57,22 @@ class DFETask:
                 'intermediate_result': dataclasses.asdict(intermediate_result)})
         return results
 
+def run_one_study(n_repetitions: int, n_qubits: int, n_trials: int, n_clifford_trials: int, noise: float):
+    task = DFETask(n_repetitions=n_repetitions,
+                   n_qubits=n_qubits,
+                   n_trials=n_trials,
+                   n_clifford_trials=n_clifford_trials,
+                   noise=noise)
+    base_dir = os.path.expanduser(f'~/cirq_results/study/dfe')
+    if recirq.exists(task, base_dir=base_dir):
+        data = recirq.load(task, base_dir=base_dir)
+    else:
+        data = {"results": task.run()}
+        recirq.save(task=task,
+                    data=data,
+                    base_dir=base_dir)
+    return data
+
 @recirq.json_serializable_dataclass(namespace='recirq.readout_scan',
                                     registry=recirq.Registry,
                                     frozen=True)
@@ -83,38 +101,72 @@ class TrueFidelityTask:
 
         return cirq.fidelity(clean_density_matrix, noisy_density_matrix)
 
-def run_one_study(n_repetitions: int, n_qubits: int, n_trials: int, n_clifford_trials: int, noise: float):
-    task = DFETask(n_repetitions=n_repetitions,
-                   n_qubits=n_qubits,
-                   n_trials=n_trials,
-                   n_clifford_trials=n_clifford_trials,
-                   noise=noise)
-    recirq.save(task=task,
-                data={"results": task.run()},
-                base_dir=os.path.expanduser(f'~/cirq_results/study/dfe'))
-
 def run_true_fidelity(n_qubits: int, noise: float):
     task = TrueFidelityTask(n_qubits=n_qubits, noise=noise)
-    recirq.save(task=task,
-                data={'true_fidelity': task.run()},
-                base_dir=os.path.expanduser(f'~/cirq_results/study/true'))
+    base_dir = os.path.expanduser(f'~/cirq_results/study/true')
+    if recirq.exists(task, base_dir=base_dir):
+        data = recirq.load(task, base_dir=base_dir)
+    else:
+        data={'true_fidelity': task.run()}
+        recirq.save(task=task,
+                    data=data,
+                    base_dir=base_dir)
+    return data
 
 def main():
     noise = 0.1
     n_repetitions = 100
 
-    for n_qubits in range(1, 9):
-        run_true_fidelity(n_qubits=n_qubits, noise=noise)
-        for n_clifford_trials in [1, 10, 100, None]:
-            for n_trials in [1, 10, 100, 1000]:
-                print('n_qubits=%d n_clifford_trials=%r n_trials=%d' % (n_qubits, n_clifford_trials, n_trials))
+    n_qubits_range = range(1, 9)
+    n_clifford_trials_range = [1, 10, 100, None]
+    n_trials_range = [1, 10, 100, 1000]
 
-                run_one_study(n_repetitions=n_repetitions,
-                              n_qubits=n_qubits,
-                              n_trials=n_trials,
-                              n_clifford_trials=n_clifford_trials,
-                              noise=noise)
+    plt.switch_backend('agg')
+    plt.subplot(2, 1, 1)
+    plt.ylabel('Fidelity')
+    plt.gca().yaxis.grid(True)
+    plt.xticks(n_qubits_range)
 
+    legend_str = []
+    for n_clifford_trials in n_clifford_trials_range:
+        mu = []
+        for n_qubits in n_qubits_range:
+            data = run_one_study(n_repetitions=n_repetitions,
+                                 n_qubits=n_qubits,
+                                 n_trials=1000,
+                                 n_clifford_trials=n_clifford_trials,
+                                 noise=noise)['results']
+            fidelities = [x['estimated_fidelity'] for x in data]
+            mu.append(np.mean(fidelities))
+        plt.plot(n_qubits_range, mu, '.-')
+        legend_str.append('Exhaustive' if n_clifford_trials is None else '%d' % (n_clifford_trials))
+    true_fidelities = [run_true_fidelity(n_qubits=n_qubits, noise=noise)['true_fidelity'] for n_qubits in n_qubits_range]
+    plt.plot(n_qubits_range, true_fidelities, '.-')
+    legend_str.append('True fidelity')
+    plt.legend(legend_str)
+
+    plt.subplot(2, 1, 2)
+    plt.xlabel('#qubits')
+    plt.ylabel('std. dev. of Fidelity')
+    plt.gca().yaxis.grid(True)
+    plt.xticks(n_qubits_range)
+    legend_str = []
+    for n_clifford_trials in n_clifford_trials_range:
+        sigma = []
+        for n_qubits in n_qubits_range:
+            true_fidelity = run_true_fidelity(n_qubits=n_qubits, noise=noise)['true_fidelity']
+            data = run_one_study(n_repetitions=n_repetitions,
+                                 n_qubits=n_qubits,
+                                 n_trials=1000,
+                                 n_clifford_trials=n_clifford_trials,
+                                 noise=noise)['results']
+            fidelities = [x['estimated_fidelity'] - true_fidelity for x in data]
+            sigma.append(np.std(fidelities))
+        plt.plot(n_qubits_range, sigma, '.-')
+        legend_str.append('Exhaustive' if n_clifford_trials is None else '%d' % (n_clifford_trials))
+    plt.legend(legend_str)
+
+    plt.savefig('examples/direct_fidelity_estimation_study.png', format='png', dpi=150)
 
 if __name__ == '__main__':
     main()
