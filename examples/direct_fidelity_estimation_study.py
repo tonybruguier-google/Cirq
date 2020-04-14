@@ -1,4 +1,5 @@
 import dataclasses
+import math
 import matplotlib.pyplot as plt
 import numpy as np
 import os
@@ -130,73 +131,45 @@ def main():
     n_clifford_trials_range = [1, 10, 100, None]
     n_trials_range = [1, 10, 100, 1000]
 
-#     plt.switch_backend('agg')
-#     plt.subplot(2, 1, 1)
-#     plt.ylabel('Fidelity')
-#     plt.gca().yaxis.grid(True)
-#     plt.xticks(n_qubits_range)
-#
-#     legend_str = []
-#     for n_clifford_trials in n_clifford_trials_range:
-#         mu = []
-#         for n_qubits in n_qubits_range:
-#             fidelities = get_one_study(n_repetitions=n_repetitions,
-#                                        n_qubits=n_qubits,
-#                                        n_trials=1,
-#                                        n_clifford_trials=n_clifford_trials,
-#                                        noise=noise)
-#             mu.append(np.mean(fidelities))
-#         plt.plot(n_qubits_range, mu, '.-')
-#         legend_str.append('Exhaustive' if n_clifford_trials is None else '%d' % (n_clifford_trials))
-#     true_fidelities = [get_true_fidelity(n_qubits, noise) for n_qubits in n_qubits_range]
-#     plt.plot(n_qubits_range, true_fidelities, '.-')
-#     legend_str.append('True fidelity')
-#     plt.legend(legend_str)
-#
-#     plt.subplot(2, 1, 2)
-#     plt.xlabel('#qubits')
-#     plt.ylabel('std. dev. of Fidelity')
-#     plt.gca().yaxis.grid(True)
-#     plt.xticks(n_qubits_range)
-#     legend_str = []
-#     for n_clifford_trials in n_clifford_trials_range:
-#         sigma = []
-#         for n_qubits in n_qubits_range:
-#             true_fidelity = get_true_fidelity(n_qubits, noise)
-#             fidelities = get_one_study(n_repetitions=n_repetitions,
-#                                        n_qubits=n_qubits,
-#                                        n_trials=1,
-#                                        n_clifford_trials=n_clifford_trials,
-#                                        noise=noise)
-#             sigma.append(np.std([x - true_fidelity for x in fidelities]))
-#         plt.plot(n_qubits_range, sigma, '.-')
-#         legend_str.append('Exhaustive' if n_clifford_trials is None else '%d' % (n_clifford_trials))
-#     plt.legend(legend_str)
-#
-#     plt.savefig('examples/direct_fidelity_estimation_study.png', format='png', dpi=150)
-
     plt.switch_backend('agg')
-    fig = plt.figure()
-
-    for n_qubits in n_qubits_range:
-        ax = fig.add_subplot(4, 2, n_qubits)
-        legend_str = []
-
-        true_fidelity = get_true_fidelity(n_qubits, noise)
-
+    plt.figure(figsize=(12, 5), dpi=150)
+    for i, n_trials in enumerate(n_trials_range):
+        plt.subplot(2, len(n_trials_range), i + 1)
         for n_clifford_trials in n_clifford_trials_range:
             fidelities = [np.mean(get_one_study(
+                n_repetitions=n_repetitions, n_qubits=n_qubits,
+                n_trials=n_trials, n_clifford_trials=n_clifford_trials,
+                noise=noise)) for n_qubits in n_qubits_range]
+            plt.plot(n_qubits_range, fidelities)
+            plt.ylim((0.0, 1.0))
+        plt.plot(n_qubits_range, [get_true_fidelity(n_qubits, noise) for n_qubits in n_qubits_range])
+        if i == 0:
+            plt.ylabel('Fidelity')
+        if i == len(n_trials_range) - 1:
+            plt.legend(['%s' % ('All' if x is None else ('%d' % (x))) for x in n_clifford_trials_range] + ["True"])
+        plt.grid()
+        plt.title('n_trials=%d' % (n_trials))
+
+        plt.subplot(2, len(n_trials_range), i + 1 + len(n_trials_range))
+
+        for n_clifford_trials in n_clifford_trials_range:
+            errors = []
+            for n_qubits in n_qubits_range:
+                true_fidelity = get_true_fidelity(n_qubits, noise)
+                raw_fidelity = get_one_study(
                     n_repetitions=n_repetitions, n_qubits=n_qubits,
                     n_trials=n_trials, n_clifford_trials=n_clifford_trials,
-                    noise=noise)) for n_trials in n_trials_range]
-            ax.semilogx(n_trials_range, fidelities, '.-')
-            legend_str.append('$\infty$' if n_clifford_trials is None else '%d' % (n_clifford_trials))
+                    noise=noise)
+                errors.append(math.sqrt(np.mean([(x - true_fidelity)**2 for x in raw_fidelity])))
+            plt.plot(n_qubits_range, errors)
+        if i == 0:
+            plt.ylabel('L2 error')
+        plt.xlabel('#qubits')
+        plt.grid()
+        plt.ylim((0.0, 0.25))
 
-        ax.semilogx(n_trials_range, [true_fidelity] * len(n_trials_range), '--', color='gray')
+    plt.savefig('examples/dfe.png', format='png')
 
-        plt.xlabel('n_trials')
-        plt.legend(legend_str)
-        plt.savefig('examples/direct_fidelity_estimation_study.png', format='png', dpi=150)
 
 if __name__ == '__main__':
     main()
