@@ -41,8 +41,9 @@ class DFETask:
 
     @property
     def fn(self):
+        n_trials_strings = 'exhaustive' if self.n_trials is None else '%d' % (self.n_trials)
         clifford_string = 'exhaustive' if self.n_clifford_trials is None else '%d' % (self.n_clifford_trials)
-        return '%d_%d_%d_%s_%e' % (self.n_repetitions, self.n_qubits, self.n_trials, clifford_string, self.noise)
+        return '%d_%d_%s_%s_%e' % (self.n_repetitions, self.n_qubits, n_trials_strings, clifford_string, self.noise)
 
     def run(self):
         print('Computing...')
@@ -129,30 +130,35 @@ def main():
 
     n_qubits_range = range(1, 9)
     n_clifford_trials_range = [1, 10, 100, None]
-    n_trials_range = [1, 10, 100, 1000]
+    n_trials_range = [1, 10, 100, 1000, None]
 
     plt.switch_backend('agg')
-    plt.figure(figsize=(12, 5), dpi=150)
+    plt.figure(figsize=(15, 5), dpi=150)
     for i, n_trials in enumerate(n_trials_range):
         plt.subplot(2, len(n_trials_range), i + 1)
+        legend_str = []
         for n_clifford_trials in n_clifford_trials_range:
+            if n_trials is None and n_clifford_trials is not None:
+                continue
             fidelities = [np.mean(get_one_study(
                 n_repetitions=n_repetitions, n_qubits=n_qubits,
                 n_trials=n_trials, n_clifford_trials=n_clifford_trials,
                 noise=noise)) for n_qubits in n_qubits_range]
             plt.plot(n_qubits_range, fidelities)
             plt.ylim((0.0, 1.0))
+            legend_str.append('%s' % ('All' if n_clifford_trials is None else ('%d' % (n_clifford_trials))))
         plt.plot(n_qubits_range, [get_true_fidelity(n_qubits, noise) for n_qubits in n_qubits_range])
         if i == 0:
             plt.ylabel('Fidelity')
-        if i == len(n_trials_range) - 1:
-            plt.legend(['%s' % ('All' if x is None else ('%d' % (x))) for x in n_clifford_trials_range] + ["True"])
+        plt.legend(legend_str + ["True"])
         plt.grid()
-        plt.title('n_trials=%d' % (n_trials))
+        plt.title('n_trials=%s' % ('All' if n_trials is None else ('%d' % (n_trials))))
 
         plt.subplot(2, len(n_trials_range), i + 1 + len(n_trials_range))
 
         for n_clifford_trials in n_clifford_trials_range:
+            if n_trials is None and n_clifford_trials is not None:
+                continue
             errors = []
             for n_qubits in n_qubits_range:
                 true_fidelity = get_true_fidelity(n_qubits, noise)
@@ -169,6 +175,35 @@ def main():
         plt.ylim((0.0, 0.25))
 
     plt.savefig('examples/dfe.png', format='png')
+
+
+    plt.switch_backend('agg')
+    fidelity_clifford_l2 = []
+    for n_qubits in n_qubits_range:
+      result = run_one_study(n_repetitions=1,
+                             n_qubits=n_qubits,
+                             n_trials=None,
+                             n_clifford_trials=None,
+                             noise=noise)['results'][0]
+      trial_results = result['intermediate_result']['trial_results']
+      pauli_traces = result['intermediate_result']['pauli_traces']
+
+      assert len(trial_results) == 2**n_qubits
+      assert len(pauli_traces) == 2**n_qubits
+
+      fidelity_comps = [x[0]['sigma_i'] * x[1]['rho_i'] for x in zip(trial_results, pauli_traces)]
+      estimated_fidelity = result['estimated_fidelity']
+
+      assert np.isclose(np.mean(fidelity_comps), estimated_fidelity, atol=1e-6)
+
+      fidelity_clifford_l2.append(math.sqrt(np.mean([(x - estimated_fidelity)**2 for x in fidelity_comps])))
+
+    plt.plot(n_qubits_range, fidelity_clifford_l2)
+    plt.ylim((0.0, 0.25))
+    plt.xlabel('#qubits')
+    plt.ylabel('L2 error')
+
+    plt.savefig('examples/clifford_vars.png', format='png')
 
 
 if __name__ == '__main__':
