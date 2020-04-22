@@ -45,6 +45,14 @@ class DFETask:
         sampler = cirq.DensityMatrixSimulator(noise=noise)
         sycamore_circuit = cg.optimized_for_sycamore(circuit,
                                                      optimizer_type='sycamore')
+
+        # Matt dixit: "You use a google cloud project ID to construct an engine object"
+        engine = cirq.google.Engine(project_id='cirq-tonybruguier')
+        print('TONBYOOM engine created')
+        processors = engine.list_processors()
+        # https://paste.googleplex.com/5108545936687104?raw
+        print('TONYBOOM processors=%s' % (processors))
+        # ''
         # sampler = cg.QuantumEngineSampler(
         #     engine=None,
         #     processor_id='tmp',
