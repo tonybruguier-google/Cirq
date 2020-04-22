@@ -161,6 +161,7 @@ def main():
 
     plt.ylabel('L2 error')
     plt.grid()
+    plt.legend(legend_str)
     plt.ylim((0.0, 0.25))
 
     plt.subplot(3, 1, 3)
@@ -183,10 +184,12 @@ def main():
 
       fidelity_clifford_l2.append(math.sqrt(np.mean([(x - estimated_fidelity)**2 for x in fidelity_comps])))
 
-    plt.plot(n_qubits_range, fidelity_clifford_l2)
+    plt.plot(n_qubits_range, fidelity_clifford_l2, 'k')
     plt.ylim((0.0, 0.25))
     plt.xlabel('#qubits')
     plt.ylabel('L2 error')
+    plt.grid()
+    plt.legend(['Within Clifford'])
 
     plt.savefig('examples/dfe.png', format='png')
 
