@@ -132,7 +132,7 @@ def main():
     noise = 0.1
     n_repetitions = 100
     circuit_id = 0
-    samples_per_term = 1000
+    samples_per_term = 0
 
     n_qubits_range = range(1, 9)
     n_measured_operators_range = [1, 10, 100, None]
