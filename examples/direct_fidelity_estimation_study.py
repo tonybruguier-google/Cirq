@@ -138,9 +138,9 @@ def main():
     n_measured_operators_range = [1, 10, 100, None]
 
     plt.switch_backend('agg')
-    plt.figure(figsize=(8.5, 11), dpi=150)
+    plt.figure(figsize=(8.5, 14), dpi=150)
 
-    plt.subplot(3, 1, 1)
+    plt.subplot(4, 1, 1)
     legend_str = []
     for n_measured_operators in n_measured_operators_range:
         fidelities = [np.mean(get_one_study(
@@ -155,7 +155,7 @@ def main():
     plt.legend(legend_str + ["True"])
     plt.grid()
 
-    plt.subplot(3, 1, 2)
+    plt.subplot(4, 1, 2)
     for n_measured_operators in n_measured_operators_range:
         errors = []
         for n_qubits in n_qubits_range:
@@ -170,9 +170,8 @@ def main():
     plt.ylabel('L2 error')
     plt.grid()
     plt.legend(legend_str)
-    #plt.ylim((0.0, 0.25))
 
-    plt.subplot(3, 1, 3)
+    plt.subplot(4, 1, 3)
     fidelity_clifford_l2 = []
     for n_qubits in n_qubits_range:
       result = run_one_study(circuit_id=circuit_id,
@@ -195,11 +194,24 @@ def main():
       fidelity_clifford_l2.append(math.sqrt(np.mean([(x - estimated_fidelity)**2 for x in fidelity_comps])))
 
     plt.plot(n_qubits_range, fidelity_clifford_l2, 'k')
-    #plt.ylim((0.0, 0.25))
     plt.xlabel('#qubits')
     plt.ylabel('L2 error')
     plt.grid()
     plt.legend(['Within Clifford'])
+
+    plt.subplot(4, 1, 4)
+    theory = []
+    for n_qubits in n_qubits_range:
+        true_fidelity = get_true_fidelity(circuit_id, n_qubits, noise)
+        theory.append(math.sqrt((1.0 - true_fidelity) * true_fidelity))
+    plt.plot(n_qubits_range, theory, 'k')
+
+
+    plt.xlabel('#qubits')
+    plt.ylabel('Theoretical variance bound')
+    plt.grid()
+    plt.legend(['Within Clifford'])
+
 
     plt.savefig('examples/dfe.png', format='png')
 
