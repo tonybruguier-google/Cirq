@@ -261,7 +261,7 @@ def _estimate_pauli_traces_general(qubits: List[cirq.Qid],
                                       repeat=n_qubits)
     if n_measured_operators is not None:
         dense_operators = random.sample(tuple(all_operators),
-                                        n_measured_operators)
+                                        min(n_measured_operators, 4**n_qubits))
     else:
         dense_operators = list(all_operators)
 

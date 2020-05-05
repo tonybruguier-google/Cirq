@@ -25,9 +25,23 @@ def _build_circuit(circuit_id, n_qubits) -> Tuple[cirq.Circuit, List[cirq.Qid]]:
         for i in range(1, n_qubits):
             circuit.append(cirq.CZ(qubits[i - 1], qubits[i]))
         return qubits, circuit
+    elif circuit_id == 1:
+        # Builds a non Clifford circuit to be studied.
+        qubits: List[cirq.Qid] = cast(List[cirq.Qid],
+                                      cirq.LineQubit.range(n_qubits))
+        circuit: cirq.Circuit = cirq.Circuit()
+
+        for i in range(0, n_qubits):
+            if i % 2:
+                circuit.append(cirq.Z(qubits[0])**0.25)
+            else:
+                circuit.append(cirq.X(qubits[i])**0.123)
+        for i in range(1, n_qubits):
+            circuit.append(cirq.CZ(qubits[i - 1], qubits[i])**0.1234)
+        return qubits, circuit
 
 def _get_noise(noise):
-    return cirq.depolarize(noise)
+    return cirq.bit_flip(noise)
 
 @recirq.json_serializable_dataclass(namespace='recirq.readout_scan',
                                     registry=recirq.Registry,
@@ -129,13 +143,31 @@ def get_true_fidelity(circuit_id: int, n_qubits: int, noise: float):
     return run_true_fidelity(circuit_id=circuit_id, n_qubits=n_qubits, noise=noise)['true_fidelity']
 
 def main():
-    noise = 0.1
+    noise = 0.5
     n_repetitions = 100
-    circuit_id = 0
+    circuit_id = 1
     samples_per_term = 0
 
-    n_qubits_range = range(1, 9)
-    n_measured_operators_range = [1, 10, 100, None]
+    n_qubits_range = range(1, 8)
+    n_measured_operators_range = [None]
+
+
+    results = run_one_study(circuit_id=circuit_id, n_repetitions=n_repetitions,
+                            n_qubits=3, n_measured_operators=None,
+                            samples_per_term=samples_per_term,
+                            noise=noise)['results']
+
+    for result in results:
+        intermediate_result = result['intermediate_result']
+        trial_results = intermediate_result['trial_results']
+
+        for trial_result in trial_results:
+            rho_i = trial_result['pauli_trace']['rho_i']
+            sigma_i = trial_result['sigma_i']
+            x = sigma_i / rho_i
+            if x > 1.00001:
+                print('TONYBOOM !!!!! x=%f' % (x))
+    return
 
     plt.switch_backend('agg')
     plt.figure(figsize=(8.5, 14), dpi=150)
@@ -171,33 +203,33 @@ def main():
     plt.grid()
     plt.legend(legend_str)
 
-    plt.subplot(4, 1, 3)
-    fidelity_clifford_l2 = []
-    for n_qubits in n_qubits_range:
-      result = run_one_study(circuit_id=circuit_id,
-                             n_repetitions=1,
-                             n_qubits=n_qubits,
-                             n_measured_operators=None,
-                             samples_per_term=samples_per_term,
-                             noise=noise)['results'][0]
-      trial_results = result['intermediate_result']['trial_results']
-      pauli_traces = result['intermediate_result']['pauli_traces']
+#     plt.subplot(4, 1, 3)
+#     fidelity_clifford_l2 = []
+#     for n_qubits in n_qubits_range:
+#       result = run_one_study(circuit_id=circuit_id,
+#                              n_repetitions=1,
+#                              n_qubits=n_qubits,
+#                              n_measured_operators=None,
+#                              samples_per_term=samples_per_term,
+#                              noise=noise)['results'][0]
+#       trial_results = result['intermediate_result']['trial_results']
+#       pauli_traces = result['intermediate_result']['pauli_traces']
 
-      assert len(trial_results) == 2**n_qubits
-      assert len(pauli_traces) == 2**n_qubits
+#       assert len(trial_results) == 2**n_qubits
+#       assert len(pauli_traces) == 2**n_qubits
 
-      fidelity_comps = [x[0]['sigma_i'] / x[1]['rho_i'] for x in zip(trial_results, pauli_traces)]
-      estimated_fidelity = result['estimated_fidelity']
+#       fidelity_comps = [x[0]['sigma_i'] / x[1]['rho_i'] for x in zip(trial_results, pauli_traces)]
+#       estimated_fidelity = result['estimated_fidelity']
 
-      assert np.isclose(np.mean(fidelity_comps), estimated_fidelity, atol=1e-6)
+#       assert np.isclose(np.mean(fidelity_comps), estimated_fidelity, atol=1e-6)
 
-      fidelity_clifford_l2.append(math.sqrt(np.mean([(x - estimated_fidelity)**2 for x in fidelity_comps])))
+#       fidelity_clifford_l2.append(math.sqrt(np.mean([(x - estimated_fidelity)**2 for x in fidelity_comps])))
 
-    plt.plot(n_qubits_range, fidelity_clifford_l2, 'k')
-    plt.xlabel('#qubits')
-    plt.ylabel('L2 error')
-    plt.grid()
-    plt.legend(['Within Clifford'])
+#     plt.plot(n_qubits_range, fidelity_clifford_l2, 'k')
+#     plt.xlabel('#qubits')
+#     plt.ylabel('L2 error')
+#     plt.grid()
+#     plt.legend(['Within Clifford'])
 
     plt.subplot(4, 1, 4)
     theory = []
